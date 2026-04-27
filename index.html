@@ -470,7 +470,6 @@
 
     function decodeString(buffer, pos) {
       const data = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
-      let start = pos;
       let lengthStr = '';
       while (pos < data.length) {
         const byte = data[pos];

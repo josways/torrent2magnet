@@ -60,7 +60,6 @@ function decode(buffer, pos = 0) {
  */
 function decodeString(buffer, pos) {
   const data = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
-  let start = pos;
 
   // 读取长度
   let lengthStr = '';

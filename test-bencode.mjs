@@ -2,9 +2,9 @@
  * Bencode.js 快速测试脚本
  */
 
-import { 
-  decode, decodeString, decodeInt, decodeList, decodeDict,
-  findInfoStart, findInfoEnd, findInfoHash, decodeTorrent 
+import {
+  decode,
+  findInfoStart, findInfoEnd, decodeTorrent
 } from './src/bencode.js';
 
 console.log('=== Bencode.js 测试脚本 ===\n');
