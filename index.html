@@ -1,0 +1,946 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Torrent2Magnet</title>
+  <style>
+    /* CSS 变量 - 主题颜色 */
+    :root {
+      /* 亮色模式 */
+      --bg-primary: #f5f5f5;
+      --bg-secondary: #ffffff;
+      --bg-tertiary: #e8e8e8;
+      --text-primary: #1a1a1a;
+      --text-secondary: #666666;
+      --text-muted: #999999;
+      --border-color: #dddddd;
+      --accent-color: #3b82f6;
+      --accent-hover: #2563eb;
+      --success-color: #22c55e;
+      --error-color: #ef4444;
+      --warning-color: #f59e0b;
+      --shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+      --shadow-lg: 0 4px 16px rgba(0, 0, 0, 0.15);
+    }
+
+    [data-theme="dark"] {
+      /* 暗色模式 */
+      --bg-primary: #0f0f0f;
+      --bg-secondary: #1a1a1a;
+      --bg-tertiary: #2a2a2a;
+      --text-primary: #f5f5f5;
+      --text-secondary: #a0a0a0;
+      --text-muted: #666666;
+      --border-color: #333333;
+      --shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+      --shadow-lg: 0 4px 16px rgba(0, 0, 0, 0.4);
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+      background-color: var(--bg-primary);
+      color: var(--text-primary);
+      min-height: 100vh;
+      transition: background-color 0.3s, color 0.3s;
+    }
+
+    /* Header */
+    header {
+      background-color: var(--bg-secondary);
+      padding: 1rem 1.5rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      box-shadow: var(--shadow);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    h1 {
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: var(--accent-color);
+    }
+
+    #theme-toggle {
+      background: var(--bg-tertiary);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 0.5rem 1rem;
+      cursor: pointer;
+      font-size: 1.2rem;
+      transition: all 0.2s;
+    }
+
+    #theme-toggle:hover {
+      background: var(--accent-color);
+      color: white;
+    }
+
+    /* Main */
+    main {
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 1.5rem;
+    }
+
+    /* 上传区域 */
+    .drop-zone {
+      border: 2px dashed var(--border-color);
+      border-radius: 12px;
+      padding: 3rem 1.5rem;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.3s;
+      background: var(--bg-secondary);
+    }
+
+    .drop-zone:hover,
+    .drop-zone.drag-over {
+      border-color: var(--accent-color);
+      background: rgba(59, 130, 246, 0.05);
+    }
+
+    .drop-zone.drag-over {
+      transform: scale(1.02);
+    }
+
+    .drop-zone-icon {
+      font-size: 3rem;
+      margin-bottom: 1rem;
+    }
+
+    .drop-zone-text {
+      color: var(--text-secondary);
+      font-size: 1rem;
+    }
+
+    .drop-zone-hint {
+      color: var(--text-muted);
+      font-size: 0.85rem;
+      margin-top: 0.5rem;
+    }
+
+    #file-input {
+      display: none;
+    }
+
+    /* 进度条 */
+    #progress {
+      margin: 1.5rem 0;
+      background: var(--bg-secondary);
+      border-radius: 8px;
+      padding: 1rem;
+      box-shadow: var(--shadow);
+    }
+
+    #progress.hidden {
+      display: none;
+    }
+
+    .progress-bar-container {
+      background: var(--bg-tertiary);
+      border-radius: 4px;
+      height: 8px;
+      overflow: hidden;
+    }
+
+    .progress-bar {
+      height: 100%;
+      background: linear-gradient(90deg, var(--accent-color), var(--success-color));
+      border-radius: 4px;
+      transition: width 0.3s ease;
+      width: 0%;
+    }
+
+    .progress-text {
+      display: block;
+      text-align: center;
+      margin-top: 0.5rem;
+      color: var(--text-secondary);
+      font-size: 0.9rem;
+    }
+
+    /* 结果列表 */
+    #results {
+      margin-top: 1.5rem;
+    }
+
+    .results-empty {
+      text-align: center;
+      padding: 2rem;
+      color: var(--text-muted);
+    }
+
+    /* 结果项 */
+    .result-item {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 1rem;
+      margin-bottom: 1rem;
+      box-shadow: var(--shadow);
+      animation: slideIn 0.3s ease;
+    }
+
+    @keyframes slideIn {
+      from {
+        opacity: 0;
+        transform: translateY(-10px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .result-item.error {
+      border-color: var(--error-color);
+    }
+
+    .result-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 0.75rem;
+    }
+
+    .result-info {
+      flex: 1;
+    }
+
+    .filename {
+      display: block;
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      margin-bottom: 0.25rem;
+    }
+
+    .torrent-name {
+      display: block;
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: var(--text-primary);
+      word-break: break-all;
+    }
+
+    .torrent-meta {
+      display: flex;
+      gap: 1rem;
+      margin-top: 0.5rem;
+      flex-wrap: wrap;
+    }
+
+    .meta-item {
+      font-size: 0.85rem;
+      color: var(--text-secondary);
+    }
+
+    .meta-item span {
+      color: var(--text-primary);
+      font-weight: 500;
+    }
+
+    .copy-btn {
+      background: var(--accent-color);
+      color: white;
+      border: none;
+      border-radius: 6px;
+      padding: 0.5rem 1rem;
+      cursor: pointer;
+      font-size: 0.85rem;
+      transition: all 0.2s;
+      white-space: nowrap;
+    }
+
+    .copy-btn:hover {
+      background: var(--accent-hover);
+    }
+
+    .copy-btn.copied {
+      background: var(--success-color);
+    }
+
+    .magnet-container {
+      background: var(--bg-tertiary);
+      border-radius: 8px;
+      padding: 0.75rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+    }
+
+    .magnet-uri {
+      flex: 1;
+      font-family: 'Consolas', 'Monaco', monospace;
+      font-size: 0.8rem;
+      color: var(--text-secondary);
+      word-break: break-all;
+      min-width: 0;
+    }
+
+    .error-message {
+      color: var(--error-color);
+      font-size: 0.9rem;
+      padding: 0.75rem;
+      background: rgba(239, 68, 68, 0.1);
+      border-radius: 6px;
+    }
+
+    /* 批量操作 */
+    #batch-actions {
+      position: fixed;
+      bottom: 1.5rem;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 0.75rem;
+      background: var(--bg-secondary);
+      padding: 0.75rem 1rem;
+      border-radius: 12px;
+      box-shadow: var(--shadow-lg);
+      border: 1px solid var(--border-color);
+    }
+
+    #batch-actions.hidden {
+      display: none;
+    }
+
+    #batch-actions button {
+      background: var(--bg-tertiary);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 0.6rem 1.2rem;
+      cursor: pointer;
+      font-size: 0.9rem;
+      transition: all 0.2s;
+      color: var(--text-primary);
+    }
+
+    #batch-actions button:hover {
+      background: var(--accent-color);
+      color: white;
+      border-color: var(--accent-color);
+    }
+
+    #copy-all.copied {
+      background: var(--success-color);
+      color: white;
+      border-color: var(--success-color);
+    }
+
+    /* Toast 提示 */
+    .toast {
+      position: fixed;
+      bottom: 5rem;
+      left: 50%;
+      transform: translateX(-50%) translateY(100px);
+      background: var(--bg-secondary);
+      color: var(--text-primary);
+      padding: 0.75rem 1.5rem;
+      border-radius: 8px;
+      box-shadow: var(--shadow-lg);
+      font-size: 0.9rem;
+      opacity: 0;
+      transition: all 0.3s ease;
+      z-index: 1000;
+      border: 1px solid var(--border-color);
+    }
+
+    .toast.show {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+
+    .toast.error {
+      border-color: var(--error-color);
+      color: var(--error-color);
+    }
+
+    .toast.success {
+      border-color: var(--success-color);
+      color: var(--success-color);
+    }
+
+    /* 响应式设计 */
+    @media (max-width: 600px) {
+      header {
+        padding: 1rem;
+      }
+
+      h1 {
+        font-size: 1.25rem;
+      }
+
+      main {
+        padding: 1rem;
+      }
+
+      .drop-zone {
+        padding: 2rem 1rem;
+      }
+
+      .drop-zone-icon {
+        font-size: 2.5rem;
+      }
+
+      .result-header {
+        flex-direction: column;
+        gap: 0.75rem;
+      }
+
+      .copy-btn {
+        width: 100%;
+      }
+
+      #batch-actions {
+        width: calc(100% - 2rem);
+        justify-content: center;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Torrent2Magnet</h1>
+    <button id="theme-toggle" aria-label="切换主题">☀️</button>
+  </header>
+
+  <main>
+    <!-- 上传区域 -->
+    <section id="upload-area" class="drop-zone" role="button" tabindex="0" aria-label="拖拽文件到此处或点击选择">
+      <input type="file" id="file-input" multiple accept=".torrent">
+      <div class="drop-zone-icon">📂</div>
+      <p class="drop-zone-text">拖拽文件到这里或点击选择</p>
+      <p class="drop-zone-hint">支持 .torrent 文件</p>
+    </section>
+
+    <!-- 处理进度 -->
+    <section id="progress" class="hidden">
+      <div class="progress-bar-container">
+        <div class="progress-bar"></div>
+      </div>
+      <span class="progress-text">0 / 0</span>
+    </section>
+
+    <!-- 结果列表 -->
+    <section id="results">
+      <div class="results-empty" id="empty-state">
+        <p>还没有转换记录</p>
+      </div>
+    </section>
+
+    <!-- 批量操作 -->
+    <div id="batch-actions" class="hidden">
+      <button id="copy-all">复制全部</button>
+      <button id="clear-all">清空</button>
+    </div>
+  </main>
+
+  <!-- Toast 提示 -->
+  <div id="toast" class="toast"></div>
+
+  <script>
+    // ========== Bencode 解析器 (内联) ==========
+    function getByte(buffer, pos) {
+      const data = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
+      return data[pos];
+    }
+
+    function decode(buffer, pos = 0) {
+      const byte = getByte(buffer, pos);
+      if (byte === undefined) {
+        throw new Error('Bencode 解析错误：缓冲区为空或位置超出范围');
+      }
+      if (byte >= 0x30 && byte <= 0x39) { return decodeString(buffer, pos); }
+      if (byte === 0x69) { return decodeInt(buffer, pos); }
+      if (byte === 0x6C) { return decodeList(buffer, pos); }
+      if (byte === 0x64) { return decodeDict(buffer, pos); }
+      throw new Error(`Bencode 解析错误：无效的格式，字节值 ${byte} (位置 ${pos})`);
+    }
+
+    function decodeString(buffer, pos) {
+      const data = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
+      let start = pos;
+      let lengthStr = '';
+      while (pos < data.length) {
+        const byte = data[pos];
+        if (byte === 0x3A) { pos++; break; }
+        if (byte < 0x30 || byte > 0x39) {
+          throw new Error(`Bencode 解析错误：字符串长度格式无效 (位置 ${pos})`);
+        }
+        lengthStr += String.fromCharCode(byte);
+        pos++;
+      }
+      if (pos >= data.length) {
+        throw new Error('Bencode 解析错误：字符串长度格式不完整');
+      }
+      const length = parseInt(lengthStr, 10);
+      if (isNaN(length) || length < 0) {
+        throw new Error(`Bencode 解析错误：字符串长度无效 "${lengthStr}"`);
+      }
+      if (pos + length > data.length) {
+        throw new Error(`Bencode 解析错误：字符串内容超出缓冲区范围 (位置 ${pos})`);
+      }
+      const bytes = data.slice(pos, pos + length);
+      let result;
+      try {
+        result = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+      } catch (e) {
+        result = new TextDecoder('iso-8859-1').decode(bytes);
+      }
+      return { result, pos: pos + length };
+    }
+
+    function decodeInt(buffer, pos) {
+      const data = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
+      if (data[pos] !== 0x69) {
+        throw new Error(`Bencode 解析错误：整数应以 'i' 开头 (位置 ${pos})`);
+      }
+      pos++;
+      let sign = 1;
+      if (data[pos] === 0x2D) { sign = -1; pos++; }
+      let numStr = '';
+      let hitEnd = false;
+      while (pos < data.length) {
+        const byte = data[pos];
+        if (byte === 0x65) { pos++; hitEnd = true; break; }
+        if (byte < 0x30 || byte > 0x39) {
+          throw new Error(`Bencode 解析错误：整数格式无效 (位置 ${pos})`);
+        }
+        numStr += String.fromCharCode(byte);
+        pos++;
+      }
+      if (numStr === '') {
+        throw new Error('Bencode 解析错误：整数值为空');
+      }
+      if (!hitEnd) {
+        throw new Error('Bencode 解析错误：整数未正确关闭，缺少结尾的 \'e\'');
+      }
+      const result = parseInt(numStr, 10) * sign;
+      if (isNaN(result)) {
+        throw new Error(`Bencode 解析错误：无效的整数 "${numStr}"`);
+      }
+      return { result, pos };
+    }
+
+    function decodeList(buffer, pos) {
+      const data = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
+      if (data[pos] !== 0x6C) {
+        throw new Error(`Bencode 解析错误：列表应以 'l' 开头 (位置 ${pos})`);
+      }
+      pos++;
+      const result = [];
+      while (pos < data.length) {
+        const byte = data[pos];
+        if (byte === 0x65) { pos++; break; }
+        const { result: item, pos: newPos } = decode(buffer, pos);
+        result.push(item);
+        pos = newPos;
+      }
+      if (pos > data.length) {
+        throw new Error('Bencode 解析错误：列表未正确关闭');
+      }
+      return { result, pos };
+    }
+
+    function decodeDict(buffer, pos) {
+      const data = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
+      if (data[pos] !== 0x64) {
+        throw new Error(`Bencode 解析错误：字典应以 'd' 开头 (位置 ${pos})`);
+      }
+      pos++;
+      const result = {};
+      while (pos < data.length) {
+        const byte = data[pos];
+        if (byte === 0x65) { pos++; break; }
+        const { result: key, pos: keyPos } = decodeString(buffer, pos);
+        pos = keyPos;
+        if (result.hasOwnProperty(key)) {
+          throw new Error(`Bencode 解析错误：字典键重复 "${key}"`);
+        }
+        const { result: value, pos: valuePos } = decode(buffer, pos);
+        result[key] = value;
+        pos = valuePos;
+      }
+      if (pos > data.length) {
+        throw new Error('Bencode 解析错误：字典未正确关闭');
+      }
+      return { result, pos };
+    }
+
+    function findInfoStart(buffer) {
+      const data = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
+      const infoBytes = new TextEncoder().encode('4:info');
+      for (let i = 0; i <= data.length - infoBytes.length; i++) {
+        let match = true;
+        for (let j = 0; j < infoBytes.length; j++) {
+          if (data[i + j] !== infoBytes[j]) { match = false; break; }
+        }
+        if (match) { return i + infoBytes.length; }
+      }
+      return null;
+    }
+
+    function findInfoEnd(buffer, infoStart) {
+      const data = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
+      let depth = 0;
+      let pos = infoStart;
+      while (pos < data.length) {
+        const byte = data[pos];
+        if (byte === 0x64 || byte === 0x6C) { depth++; }
+        else if (byte === 0x65) {
+          depth--;
+          if (depth === 0) { return pos + 1; }
+        }
+        if (byte >= 0x30 && byte <= 0x39) {
+          while (pos < data.length && data[pos] !== 0x3A) { pos++; }
+          pos++;
+          let lenStr = '';
+          const startPos = pos - 1;
+          while (pos < data.length && data[pos] >= 0x30 && data[pos] <= 0x39) {
+            lenStr += String.fromCharCode(data[pos]);
+            pos++;
+          }
+          const len = parseInt(lenStr, 10) || 0;
+          pos += len;
+          continue;
+        }
+        pos++;
+      }
+      return null;
+    }
+
+    function findInfoHash(buffer, infoStart, infoEnd) {
+      const data = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
+      if (infoStart === null || infoEnd === null) { return null; }
+      if (infoStart < 0 || infoEnd > data.length || infoStart >= infoEnd) { return null; }
+      const infoBytes = data.slice(infoStart, infoEnd);
+      return { infoBytes, infoStart, infoEnd };
+    }
+
+    function decodeTorrent(buffer) {
+      const { result, pos } = decode(buffer, 0);
+      const infoStart = findInfoStart(buffer);
+      let infoEnd = null;
+      if (infoStart !== null) { infoEnd = findInfoEnd(buffer, infoStart); }
+      let infoResult = null;
+      if (infoStart !== null && infoEnd !== null) { infoResult = findInfoHash(buffer, infoStart, infoEnd); }
+      return {
+        data: result,
+        infoBytes: infoResult ? infoResult.infoBytes : null,
+        infoStart,
+        infoEnd
+      };
+    }
+
+    // ========== Magnet URI 生成器 (内联) ==========
+    async function sha1(buffer) {
+      const data = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
+      return crypto.subtle.digest('SHA-1', data);
+    }
+
+    function toHex(buffer) {
+      const bytes = new Uint8Array(buffer);
+      return Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
+    }
+
+    function encodeURIComponentSafe(str) {
+      try {
+        return encodeURIComponent(str);
+      } catch (e) {
+        return str.split('').map(char => {
+          if (/[A-Za-z0-9\-_.~]/.test(char)) { return char; }
+          return '%' + char.charCodeAt(0).toString(16).toUpperCase().padStart(2, '0');
+        }).join('');
+      }
+    }
+
+    function calculateTotalSize(info) {
+      if (info.length !== undefined) { return info.length; }
+      if (info.files) { return info.files.reduce((sum, file) => sum + (file.length || 0), 0); }
+      return 0;
+    }
+
+    function extractTrackers(torrentData) {
+      const trackers = new Set();
+      if (Array.isArray(torrentData['announce-list'])) {
+        for (const tier of torrentData['announce-list']) {
+          if (Array.isArray(tier)) {
+            for (const tracker of tier) {
+              if (typeof tracker === 'string' && tracker.trim()) { trackers.add(tracker.trim()); }
+            }
+          } else if (typeof tier === 'string' && tier.trim()) { trackers.add(tier.trim()); }
+        }
+      }
+      if (torrentData.announce && typeof torrentData.announce === 'string') {
+        const announce = torrentData.announce.trim();
+        if (announce) { trackers.add(announce); }
+      }
+      return Array.from(trackers);
+    }
+
+    async function generateMagnet(torrentData, infoBytes) {
+      if (!torrentData || typeof torrentData !== 'object') {
+        throw new Error('Magnet 生成错误：无效的 torrent 数据');
+      }
+      if (!infoBytes || !(infoBytes instanceof Uint8Array)) {
+        throw new Error('Magnet 生成错误：缺少 info 字段的原始数据');
+      }
+      const info = torrentData.info;
+      if (!info) { throw new Error('Magnet 生成错误：torrent 数据中缺少 info 字段'); }
+      let infoHash;
+      try {
+        const hashBuffer = await sha1(infoBytes);
+        infoHash = toHex(hashBuffer);
+      } catch (e) {
+        throw new Error(`Magnet 生成错误：SHA-1 计算失败 - ${e.message}`);
+      }
+      if (infoHash.length !== 40) { throw new Error('Magnet 生成错误：计算的 InfoHash 长度不正确'); }
+      const displayName = info.name;
+      if (!displayName) { throw new Error('Magnet 生成错误：info 字段中缺少 name'); }
+      const totalSize = calculateTotalSize(info);
+      const trackers = extractTrackers(torrentData);
+      const params = [];
+      params.push(`xt=urn:btih:${infoHash}`);
+      params.push(`dn=${encodeURIComponentSafe(displayName)}`);
+      params.push(`xl=${totalSize}`);
+      for (const tracker of trackers) { params.push(`tr=${encodeURIComponentSafe(tracker)}`); }
+      return `magnet:?${params.join('&')}`;
+    }
+
+    // ========== 应用逻辑 ==========
+    const dropZone = document.getElementById('upload-area');
+    const fileInput = document.getElementById('file-input');
+    const progressSection = document.getElementById('progress');
+    const progressBar = document.querySelector('.progress-bar');
+    const progressText = document.querySelector('.progress-text');
+    const resultsSection = document.getElementById('results');
+    const emptyState = document.getElementById('empty-state');
+    const batchActions = document.getElementById('batch-actions');
+    const copyAllBtn = document.getElementById('copy-all');
+    const clearAllBtn = document.getElementById('clear-all');
+    const themeToggle = document.getElementById('theme-toggle');
+    const toast = document.getElementById('toast');
+
+    let results = [];
+    let isProcessing = false;
+
+    // 主题初始化
+    function initTheme() {
+      const savedTheme = localStorage.getItem('theme') || 'light';
+      document.documentElement.setAttribute('data-theme', savedTheme);
+      themeToggle.textContent = savedTheme === 'dark' ? '🌙' : '☀️';
+    }
+
+    // 主题切换
+    themeToggle.addEventListener('click', () => {
+      const currentTheme = document.documentElement.getAttribute('data-theme');
+      const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+      document.documentElement.setAttribute('data-theme', newTheme);
+      localStorage.setItem('theme', newTheme);
+      themeToggle.textContent = newTheme === 'dark' ? '🌙' : '☀️';
+    });
+
+    // 格式化文件大小
+    function formatSize(bytes) {
+      if (bytes === 0) return '0 B';
+      const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+      const k = 1024;
+      const i = Math.floor(Math.log(bytes) / Math.log(k));
+      return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + units[i];
+    }
+
+    // Toast 提示
+    function showToast(message, type = 'info') {
+      toast.textContent = message;
+      toast.className = 'toast show ' + type;
+      setTimeout(() => { toast.className = 'toast'; }, 2000);
+    }
+
+    // 拖拽事件处理
+    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+      dropZone.addEventListener(eventName, e => { e.preventDefault(); e.stopPropagation(); });
+    });
+
+    ['dragenter', 'dragover'].forEach(eventName => {
+      dropZone.addEventListener(eventName, () => { dropZone.classList.add('drag-over'); });
+    });
+
+    ['dragleave', 'drop'].forEach(eventName => {
+      dropZone.addEventListener(eventName, () => { dropZone.classList.remove('drag-over'); });
+    });
+
+    dropZone.addEventListener('drop', e => { handleFiles(e.dataTransfer.files); });
+
+    dropZone.addEventListener('click', () => { if (!isProcessing) { fileInput.click(); } });
+
+    dropZone.addEventListener('keydown', e => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); if (!isProcessing) { fileInput.click(); } }
+    });
+
+    fileInput.addEventListener('change', e => { handleFiles(e.target.files); fileInput.value = ''; });
+
+    // 文件验证
+    function validateFile(file) {
+      const validTypes = ['.torrent', 'application/x-bittorrent'];
+      const ext = '.' + file.name.split('.').pop().toLowerCase();
+      if (!validTypes.includes(ext) && file.type !== 'application/x-bittorrent') {
+        return { valid: false, error: `不支持的文件类型: ${file.type || ext}` };
+      }
+      return { valid: true };
+    }
+
+    // 文件处理
+    async function handleFiles(files) {
+      if (files.length === 0 || isProcessing) return;
+      const validFiles = [];
+      for (const file of files) {
+        const validation = validateFile(file);
+        if (validation.valid) { validFiles.push(file); } else { addErrorResult(file.name, validation.error); }
+      }
+      if (validFiles.length === 0) return;
+      isProcessing = true;
+      showProgress(validFiles.length);
+      results = [];
+      for (let i = 0; i < validFiles.length; i++) { await processFile(validFiles[i], i + 1, validFiles.length); }
+      isProcessing = false;
+      hideProgress();
+      updateBatchActions();
+    }
+
+    // 显示进度
+    function showProgress(total) {
+      progressSection.classList.remove('hidden');
+      updateProgress(0, total);
+    }
+
+    // 更新进度
+    function updateProgress(current, total) {
+      const percent = total > 0 ? (current / total) * 100 : 0;
+      progressBar.style.width = percent + '%';
+      progressText.textContent = `${current} / ${total}`;
+    }
+
+    // 隐藏进度
+    function hideProgress() { progressSection.classList.add('hidden'); }
+
+    // 处理单个文件
+    async function processFile(file, index, total) {
+      try {
+        const buffer = await file.arrayBuffer();
+        const decoded = decodeTorrent(buffer);
+        if (!decoded.data || !decoded.infoBytes) { throw new Error('解析失败：无法提取 info 字段'); }
+        const magnet = await generateMagnet(decoded.data, decoded.infoBytes);
+        const info = decoded.data.info;
+        let fileCount = 1;
+        let totalSize = info.length || 0;
+        if (info.files) { fileCount = info.files.length; totalSize = info.files.reduce((sum, f) => sum + (f.length || 0), 0); }
+        const result = { filename: file.name, name: info.name || '未知名称', fileCount, size: totalSize, magnet, error: null };
+        results.push(result);
+        addResultItem(result);
+      } catch (error) {
+        const result = { filename: file.name, name: null, fileCount: null, size: null, magnet: null, error: error.message || '解析失败' };
+        results.push(result);
+        addErrorResult(file.name, error.message || '解析失败');
+      }
+      updateProgress(index, total);
+    }
+
+    // 添加结果项
+    function addResultItem(result) {
+      emptyState.style.display = 'none';
+      const item = document.createElement('div');
+      item.className = 'result-item';
+      item.innerHTML = `
+        <div class="result-header">
+          <div class="result-info">
+            <span class="filename">${escapeHtml(result.filename)}</span>
+            <span class="torrent-name">${escapeHtml(result.name)}</span>
+            <div class="torrent-meta">
+              <span class="meta-item">文件数量: <span>${result.fileCount}</span></span>
+              <span class="meta-item">总大小: <span>${formatSize(result.size)}</span></span>
+            </div>
+          </div>
+          <button class="copy-btn" data-magnet="${escapeHtml(result.magnet)}">复制</button>
+        </div>
+        <div class="magnet-container">
+          <code class="magnet-uri">${escapeHtml(result.magnet)}</code>
+        </div>
+      `;
+      resultsSection.appendChild(item);
+      const copyBtn = item.querySelector('.copy-btn');
+      copyBtn.addEventListener('click', () => copyToClipboard(result.magnet, copyBtn));
+    }
+
+    // 添加错误结果
+    function addErrorResult(filename, error) {
+      emptyState.style.display = 'none';
+      const item = document.createElement('div');
+      item.className = 'result-item error';
+      item.innerHTML = `
+        <div class="result-header">
+          <div class="result-info">
+            <span class="filename">${escapeHtml(filename)}</span>
+            <span class="torrent-name">解析失败</span>
+          </div>
+        </div>
+        <div class="error-message">${escapeHtml(error)}</div>
+      `;
+      resultsSection.appendChild(item);
+    }
+
+    // HTML 转义
+    function escapeHtml(str) {
+      if (!str) return '';
+      const div = document.createElement('div');
+      div.textContent = str;
+      return div.innerHTML;
+    }
+
+    // 复制到剪贴板
+    async function copyToClipboard(text, button) {
+      try {
+        await navigator.clipboard.writeText(text);
+        if (button) {
+          button.textContent = '已复制';
+          button.classList.add('copied');
+          setTimeout(() => { button.textContent = '复制'; button.classList.remove('copied'); }, 1500);
+        }
+        showToast('已复制到剪贴板', 'success');
+      } catch (error) { showToast('复制失败，请手动复制', 'error'); }
+    }
+
+    // 更新批量操作按钮
+    function updateBatchActions() {
+      const hasResults = results.length > 0;
+      batchActions.classList.toggle('hidden', !hasResults);
+    }
+
+    // 批量复制
+    copyAllBtn.addEventListener('click', async () => {
+      const magnets = results.filter(r => r.magnet).map(r => r.magnet).join('\n');
+      if (magnets) { await copyToClipboard(magnets, copyAllBtn); setTimeout(() => { copyAllBtn.classList.remove('copied'); }, 1500); }
+    });
+
+    // 清空结果
+    clearAllBtn.addEventListener('click', () => {
+      results = [];
+      resultsSection.innerHTML = '<div class="results-empty" id="empty-state"><p>还没有转换记录</p></div>';
+      updateBatchActions();
+    });
+
+    // 初始化
+    initTheme();
+  </script>
+</body>
+</html>
