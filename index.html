@@ -595,28 +595,38 @@
       const data = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
       let depth = 0;
       let pos = infoStart;
+
       while (pos < data.length) {
         const byte = data[pos];
-        if (byte === 0x64 || byte === 0x6C) { depth++; }
-        else if (byte === 0x65) {
+
+        if (byte === 0x64 || byte === 0x6C) { // 'd' or 'l'
+          depth++;
+          pos++;
+        } else if (byte === 0x65) { // 'e'
           depth--;
           if (depth === 0) { return pos + 1; }
-        }
-        if (byte >= 0x30 && byte <= 0x39) {
-          while (pos < data.length && data[pos] !== 0x3A) { pos++; }
           pos++;
+        } else if (byte >= 0x30 && byte <= 0x39) { // '0'-'9' 字符串
           let lenStr = '';
-          const startPos = pos - 1;
-          while (pos < data.length && data[pos] >= 0x30 && data[pos] <= 0x39) {
+          while (pos < data.length && data[pos] !== 0x3A) {
             lenStr += String.fromCharCode(data[pos]);
             pos++;
           }
+          pos++; // 跳过 ':'
           const len = parseInt(lenStr, 10) || 0;
-          pos += len;
-          continue;
+          pos += len; // 跳过字符串内容
+        } else if (byte === 0x69) { // 'i' 整数
+          pos++; // 跳过 'i'
+          if (data[pos] === 0x2D) { pos++; } // 跳过可选的负号
+          while (pos < data.length && data[pos] !== 0x65) {
+            pos++; // 跳过数字字符
+          }
+          pos++; // 跳过结尾的 'e'
+        } else {
+          pos++;
         }
-        pos++;
       }
+
       return null;
     }
 

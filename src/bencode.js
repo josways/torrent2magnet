@@ -292,41 +292,35 @@ function findInfoEnd(buffer, infoStart) {
   while (pos < data.length) {
     const byte = data[pos];
 
-    // 我们需要追踪括号深度
-    // 对于字典：'d' +1, 'e' -1
-    // 对于列表：'l' +1, 'e' -1
     if (byte === 0x64 || byte === 0x6C) { // 'd' or 'l'
       depth++;
+      pos++;
     } else if (byte === 0x65) { // 'e'
       depth--;
       if (depth === 0) {
         return pos + 1; // 返回 'e' 之后的位置
       }
-    } else if (depth === 0 && (byte === 0x69 || byte === 0x73)) {
-      // 在顶层深度遇到非结构字符，说明 info 字典已结束
-      // 但这种情况实际上不应该发生，因为我们从 info 的开头开始
-      // 这里的逻辑需要调整
-    }
-
-    // 跳过字符串长度
-    if (byte >= 0x30 && byte <= 0x39) { // '0'-'9'
-      while (pos < data.length && data[pos] !== 0x3A) { // ':'
-        pos++;
-      }
-      pos++; // 跳过 ':'
-      // 跳过字符串内容
+      pos++;
+    } else if (byte >= 0x30 && byte <= 0x39) { // '0'-'9' 字符串
+      // 读取字符串长度（在 ':' 之前的数字）
       let lenStr = '';
-      const startPos = pos - 1;
-      while (pos < data.length && data[pos] >= 0x30 && data[pos] <= 0x39) {
+      while (pos < data.length && data[pos] !== 0x3A) {
         lenStr += String.fromCharCode(data[pos]);
         pos++;
       }
+      pos++; // 跳过 ':'
       const len = parseInt(lenStr, 10) || 0;
-      pos += len;
-      continue;
+      pos += len; // 跳过字符串内容
+    } else if (byte === 0x69) { // 'i' 整数
+      pos++; // 跳过 'i'
+      if (data[pos] === 0x2D) { pos++; } // 跳过可选的负号
+      while (pos < data.length && data[pos] !== 0x65) {
+        pos++; // 跳过数字字符
+      }
+      pos++; // 跳过结尾的 'e'
+    } else {
+      pos++;
     }
-
-    pos++;
   }
 
   return null;
