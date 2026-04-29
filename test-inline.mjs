@@ -1,14 +1,93 @@
 /**
- * Bencode.js 快速测试脚本
+ * Bencode 内联代码测试脚本
+ * 直接从 index.html 中提取内联的 bencode 解析器代码进行测试
+ * 无需维护 src/bencode.js 副本，测试的是实际部署的代码
  */
 
-import {
+import { readFileSync } from 'fs';
+import vm from 'vm';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+// ============= 从 index.html 提取内联 bencode 代码 =============
+console.log('=== 从 index.html 提取内联 bencode 代码 ===\n');
+
+const htmlPath = join(__dirname, 'index.html');
+const html = readFileSync(htmlPath, 'utf-8');
+
+// 提取 <script> 标签内的全部代码
+const scriptMatch = html.match(/<script>\s*([\s\S]*?)<\/script>/);
+if (!scriptMatch) {
+  console.error('错误：无法从 index.html 中提取 <script> 内容');
+  process.exit(1);
+}
+const fullScript = scriptMatch[1];
+
+// 只提取 bencode 解析器部分（到 "Magnet URI 生成器" 注释之前）
+const bencodeSection = fullScript.split('// ========== Magnet URI 生成器')[0];
+if (!bencodeSection || bencodeSection.trim().length === 0) {
+  console.error('错误：无法从 index.html 中提取 bencode 解析器代码');
+  process.exit(1);
+}
+
+console.log(`成功提取 bencode 代码 (${bencodeSection.split('\n').length} 行)\n`);
+
+// ============= 在 VM 沙箱中执行 =============
+const sandbox = {
+  Uint8Array,
+  TextDecoder,
+  TextEncoder,
+  parseInt,
+  isNaN,
+  Error,
+  Array,
+  String,
+  String: String,
+  Math,
+  JSON,
+  console,
+  // bencode 代码中使用了 hasOwnProperty
+  Object
+};
+
+const context = vm.createContext(sandbox);
+
+try {
+  vm.runInContext(bencodeSection, context);
+} catch (e) {
+  console.error('错误：执行内联 bencode 代码失败:', e.message);
+  process.exit(1);
+}
+
+// 从沙箱中获取函数引用
+const {
   decode,
-  findInfoStart, findInfoEnd, decodeTorrent
-} from './src/bencode.js';
+  decodeString,
+  decodeInt,
+  decodeList,
+  decodeDict,
+  findInfoStart,
+  findInfoEnd,
+  findInfoHash,
+  decodeTorrent
+} = context;
 
-console.log('=== Bencode.js 测试脚本 ===\n');
+// 验证所有函数都已正确导出
+const requiredFns = ['decode', 'decodeString', 'decodeInt', 'decodeList', 'decodeDict',
+                      'findInfoStart', 'findInfoEnd', 'findInfoHash', 'decodeTorrent'];
+for (const fn of requiredFns) {
+  if (typeof context[fn] !== 'function') {
+    console.error(`错误：函数 ${fn} 未在沙箱中找到`);
+    process.exit(1);
+  }
+}
 
+console.log('所有 bencode 函数已成功加载到沙箱中\n');
+
+// ============= 测试框架 =============
 let passed = 0;
 let failed = 0;
 
@@ -31,7 +110,7 @@ function assertEqual(actual, expected, msg = '') {
 }
 
 // ============= 基本解析测试 =============
-console.log('\n--- 基本解析测试 ---');
+console.log('--- 基本解析测试 ---');
 
 test('解析整数 i123e', () => {
   const enc = new TextEncoder().encode('i123e');
@@ -99,7 +178,6 @@ test('解析中文字符串 6:测试', () => {
 });
 
 test('解析混合字符串 11:hello世界', () => {
-  // "hello世界" 在 UTF-8 中: h=1, e=1, l=1, l=1, o=1, 世=3, 界=3 = 11 bytes
   const enc = new TextEncoder().encode('11:hello世界');
   const { result } = decode(enc, 0);
   assertEqual(result, 'hello世界');
@@ -132,13 +210,10 @@ test('无效格式应抛出错误', () => {
 
 test('不完整的整数应抛出错误', () => {
   try {
-    // 正确的 bencode 整数是 i<number>e，不完整的应该是 i<number> 后面没有 e
-    // 这里用 "i123" 但后面没有 e，解析完 "123" 后遇到缓冲区末尾
     decode(new TextEncoder().encode('i123'), 0);
     throw new Error('应该抛出错误');
   } catch (e) {
     console.log(`  实际错误信息: "${e.message}"`);
-    // 错误信息可能是 "无效的格式" 因为遇到未知字节
     if (!e.message.includes('格式') && !e.message.includes('整数')) {
       throw new Error('错误信息不正确: ' + e.message);
     }
@@ -147,13 +222,10 @@ test('不完整的整数应抛出错误', () => {
 
 test('重复键应抛出错误', () => {
   try {
-    // 正确的 bencode 字典：d3:key5:value3:key5:value2e
-    // 但这个测试数据有问题，让我们用正确的格式
     decode(new TextEncoder().encode('d3:key5:value3:key5:value2e'), 0);
     throw new Error('应该抛出错误');
   } catch (e) {
     console.log(`  实际错误信息: "${e.message}"`);
-    // 错误信息应该是 "重复"
     if (!e.message.includes('重复')) {
       throw new Error('错误信息不正确: ' + e.message);
     }
@@ -167,7 +239,6 @@ test('findInfoStart 应正确找到 info 字段', () => {
   const torrent = 'd8:announce35:http://tracker.example.com/announce4:infod6:lengthi123456e4:name8:test.txtee';
   const enc = new TextEncoder().encode(torrent);
   const infoStart = findInfoStart(enc);
-  // "4:info" 后面是 'd'，所以 infoStart 应该指向 info 字典开始处
   console.log(`  infoStart = ${infoStart}`);
   console.log(`  周围内容: "${new TextDecoder().decode(enc.slice(infoStart - 10, infoStart + 10))}"`);
 });
@@ -178,12 +249,11 @@ test('findInfoEnd 应正确找到 info 字段结束位置', () => {
   const infoStart = findInfoStart(enc);
   const infoEnd = findInfoEnd(enc, infoStart);
   console.log(`  infoStart = ${infoStart}, infoEnd = ${infoEnd}`);
-  
+
   if (infoStart !== null && infoEnd !== null) {
     const infoBytes = enc.slice(infoStart, infoEnd);
     console.log(`  info 内容: "${new TextDecoder().decode(infoBytes)}"`);
-    
-    // 验证 info 内容可以正确解析
+
     const infoResult = decode(enc, infoStart);
     console.log(`  解析结果: ${JSON.stringify(infoResult.result)}`);
     assertEqual(infoResult.result.length, 123456);
@@ -195,10 +265,10 @@ test('decodeTorrent 应正确解析完整 torrent', () => {
   const torrent = 'd8:announce35:http://tracker.example.com/announce4:infod6:lengthi123456e4:name8:test.txtee';
   const enc = new TextEncoder().encode(torrent);
   const result = decodeTorrent(enc);
-  
+
   console.log(`  infoStart: ${result.infoStart}, infoEnd: ${result.infoEnd}`);
   console.log(`  infoBytes: ${result.infoBytes ? result.infoBytes.length + ' bytes' : 'null'}`);
-  
+
   assertEqual(result.data.announce, 'http://tracker.example.com/announce');
   assertEqual(result.data.info.length, 123456);
   assertEqual(result.data.info.name, 'test.txt');
